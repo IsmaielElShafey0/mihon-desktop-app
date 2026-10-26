@@ -31,6 +31,7 @@ sealed class EmulatorView : Form
     readonly System.Windows.Forms.Timer resizeTimer = new() { Interval = 150 };
     readonly System.Windows.Forms.Timer wheelTimer = new() { Interval = 120 };
     readonly System.Windows.Forms.Timer moveTimer = new() { Interval = 10 };
+    readonly System.Windows.Forms.Timer settleTimer = new() { Interval = SettleDelay };
     readonly Stopwatch moveClock = Stopwatch.StartNew();
     long lastMove = -MoveInterval;
     (int Finger, Point At)? pendingMove;
@@ -42,8 +43,13 @@ sealed class EmulatorView : Form
     MemoryMappedViewAccessor frameView;
     IntPtr frames;
     string sharedMemory;
-    int frameStreams, streamFrames, failedStreams;
+    int frameStreams, streamFrames, failedStreams, framesArrived;
     int mappedBytes, frameWidth, frameHeight, paintPending;
+    MemoryMappedFile pictureMap;
+    MemoryMappedViewAccessor pictureView;
+    IntPtr picture;
+    string pictureMemory;
+    int pictureBytes, pictureMaps, failedPictures;
     uint[] pixels = new uint[0];
     int pixelsWidth, pixelsHeight;
     bool streaming, closed, touching, fullScreen;
@@ -75,6 +81,7 @@ sealed class EmulatorView : Form
         touchSlop = 8 * dpi / 160;
         wheelTimer.Tick += (_, _) => EndWheel();
         moveTimer.Tick += (_, _) => SendPendingMove();
+        settleTimer.Tick += (_, _) => Settle();
         AutoScaleMode = AutoScaleMode.None;
         Text = "Mihon";
         Icon = new Icon(Resources.Open("Mihon.ico"));
@@ -182,7 +189,8 @@ sealed class EmulatorView : Form
         Close();
     }
 
-    void OnImage(byte[] message)
+    /// <summary>The width and height an Image message's format gives.</summary>
+    static (int Width, int Height) ImageSize(byte[] message)
     {
         int width = 0, height = 0;
         foreach (var field in Pb.Read(new ArraySegment<byte>(message)))
@@ -194,6 +202,12 @@ sealed class EmulatorView : Form
                 else if (format.Field == 4) height = (int)format.Number;
             }
         }
+        return (width, height);
+    }
+
+    void OnImage(byte[] message)
+    {
+        var (width, height) = ImageSize(message);
         if (width <= 0 || height <= 0) return;
         lock (frameGate)
         {
@@ -203,6 +217,7 @@ sealed class EmulatorView : Form
             frameWidth = width;
             frameHeight = height;
             streamFrames++;
+            framesArrived++;
         }
         firstFrame.TrySetResult(true);
         if (!minimized && Interlocked.Exchange(ref paintPending, 1) == 0) Ui(PaintFrame);
@@ -252,26 +267,143 @@ sealed class EmulatorView : Form
         lock (frameGate)
         {
             if (frames == IntPtr.Zero) return;
-            var count = frameWidth * frameHeight;
-            if (pixels.Length < count) pixels = new uint[count];
-            unsafe
-            {
-                // The emulator's bytes are RGBA; a DIB wants BGRA. Swapping red and blue here costs about 1 ms a frame,
-                // much less than letting GDI convert each pixel.
-                var source = (uint*)frames;
-                fixed (uint* target = pixels)
-                {
-                    for (var i = 0; i < count; i++)
-                    {
-                        var v = source[i];
-                        target[i] = (v & 0xFF00FF00) | ((v & 0xFF) << 16) | ((v >> 16) & 0xFF);
-                    }
-                }
-            }
-            pixelsWidth = frameWidth;
-            pixelsHeight = frameHeight;
+            CopyPixels(frames, frameWidth, frameHeight);
         }
         Draw();
+        settleTimer.Stop();
+        settleTimer.Start();
+    }
+
+    /// <summary>Takes a frame (RGBA, from shared memory) for drawing.</summary>
+    unsafe void CopyPixels(IntPtr source, int width, int height)
+    {
+        var count = width * height;
+        if (pixels.Length < count) pixels = new uint[count];
+        // The emulator's bytes are RGBA; a DIB wants BGRA. Swapping red and blue here costs about 1 ms a frame,
+        // much less than letting GDI convert each pixel.
+        var from = (uint*)source;
+        fixed (uint* to = pixels)
+        {
+            for (var i = 0; i < count; i++)
+            {
+                var v = from[i];
+                to[i] = (v & 0xFF00FF00) | ((v & 0xFF) << 16) | ((v >> 16) & 0xFF);
+            }
+        }
+        pixelsWidth = width;
+        pixelsHeight = height;
+    }
+
+    // The emulator's stream sometimes leaves out the last frame of a change: Android drew it and the emulator holds it,
+    // but the stream never sends it, so the window went on showing the screen before (a tab switch didn't show until
+    // the next click, which Mihon then took as a second tap on that tab). The stream missed 3 to 17 of 30 tab switches
+    // in testing, with OpenGL as with Vulkan. So once frames stop coming, the window asks for the emulator's current
+    // picture (about 4 ms of the emulator's time), which was right every time, even 15 ms after the last frame.
+    const int SettleDelay = 50;
+
+    void Settle()
+    {
+        settleTimer.Stop();
+        if (closed || minimized) return;
+        RequestPicture();
+    }
+
+    /// <summary>Asks the emulator for its current picture of Mihon's display, which arrives in shared memory.</summary>
+    bool RequestPicture()
+    {
+        if (failedPictures >= 3) return false;
+        int width, height, arrived;
+        lock (frameGate)
+        {
+            width = frameWidth;
+            height = frameHeight;
+            arrived = framesArrived;
+        }
+        if (width == 0 || !MapPicture(width * height * 4)) return false;
+        // The emulator's pixels are opaque, so a picture it wrote doesn't start with a transparent one.
+        unsafe { *(uint*)picture = 0; }
+        var memory = pictureMemory;
+        try
+        {
+            var call = grpc.Start(Controller + "getScreenshot");
+            call.Message += reply => Ui(() => ShowPicture(reply, memory, arrived));
+            call.Send(new Pb()
+                .Int(1, 1)                                         // RGBA8888
+                .Int(5, Display)
+                .Message(6, new Pb().Int(1, 1).Text(2, memory))    // transport: MMAP
+                .ToArray(), last: true);
+            return true;
+        }
+        catch (Exception e) when (e is IOException or ObjectDisposedException)
+        {
+            return false;
+        }
+    }
+
+    void ShowPicture(byte[] reply, string memory, int arrived)
+    {
+        if (closed || memory != pictureMemory) return;
+        var (width, height) = ImageSize(reply);
+        bool written, copied = false;
+        lock (frameGate)
+        {
+            // A frame that came meanwhile is newer than this picture, and the window settles again after it.
+            if (arrived != framesArrived) return;
+            unsafe { written = *(uint*)picture >> 24 != 0; }
+            if (written && width * height * 4 == pictureBytes)
+            {
+                CopyPixels(picture, width, height);
+                copied = true;
+            }
+        }
+        if (copied) Draw();
+        if (written) failedPictures = 0;
+        else if (++failedPictures == 3) Log.Warn("The emulator doesn't hand over its current picture, so only its stream of frames shows");
+    }
+
+    /// <summary>
+    /// Makes the shared memory for the emulator's current picture. Unlike the stream's memory, the window makes it:
+    /// memory the emulator makes for one picture is gone again when the call ends.
+    /// </summary>
+    bool MapPicture(int bytes)
+    {
+        if (picture != IntPtr.Zero && pictureBytes == bytes) return true;
+        UnmapPicture();
+        // The emulator puts "SHM_" in front of the name it's given.
+        var name = $"MihonWindows-picture-{Process.GetCurrentProcess().Id}-{++pictureMaps}";
+        try
+        {
+            pictureMap = MemoryMappedFile.CreateNew("SHM_" + name, bytes);
+            pictureView = pictureMap.CreateViewAccessor(0, bytes);
+            unsafe
+            {
+                byte* pointer = null;
+                pictureView.SafeMemoryMappedViewHandle.AcquirePointer(ref pointer);
+                picture = (IntPtr)pointer;
+            }
+            pictureMemory = name;
+            pictureBytes = bytes;
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Log.Warn("Couldn't make shared memory for the emulator's current picture: " + e.Message);
+            UnmapPicture();
+            failedPictures = 3;
+            return false;
+        }
+    }
+
+    void UnmapPicture()
+    {
+        if (picture != IntPtr.Zero) pictureView.SafeMemoryMappedViewHandle.ReleasePointer();
+        picture = IntPtr.Zero;
+        pictureView?.Dispose();
+        pictureMap?.Dispose();
+        pictureView = null;
+        pictureMap = null;
+        pictureMemory = null;
+        pictureBytes = 0;
     }
 
     void Draw()
@@ -627,10 +759,12 @@ sealed class EmulatorView : Form
         resizeTimer.Dispose();
         wheelTimer.Dispose();
         moveTimer.Dispose();
+        settleTimer.Dispose();
         lock (frameGate)
         {
             closed = true;
             Unmap();
+            UnmapPicture();
         }
         base.OnFormClosed(e);
     }
