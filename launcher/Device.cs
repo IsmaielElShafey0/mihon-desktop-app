@@ -143,12 +143,45 @@ static class Device
         "-n com.android.emulator.multidisplay/.MultiDisplayServiceReceiver >/dev/null", ct);
 
     /// <summary>Creates Mihon's display, or resizes it (same Android display, so Mihon just lays itself out again).</summary>
-    public static Task<bool> SetMihonDisplayAsync(int width, int height, int dpi)
+    public static Task<bool> SetMihonDisplayAsync(int width, int height, int dpi) => SendConsoleCommandAsync(
+        $"multidisplay add {EmulatorView.Display} {Math.Max(MinimumDisplaySide(dpi), width)} {Math.Max(MinimumDisplaySide(dpi), height)} {dpi} {MihonDisplayFlags}");
+
+    // The emulator refuses displays narrower or lower than 320 dp.
+    static int MinimumDisplaySide(int dpi) => (int)Math.Ceiling(320 * dpi / 160.0);
+
+    /// <summary>
+    /// With Vulkan, Android's saved state brings Mihon's display back with a picture the emulator no longer updates:
+    /// Android draws on, but the window kept showing the screen Mihon was closed on. A size change and back gives the
+    /// display new buffers, which the emulator follows again.
+    /// </summary>
+    public static async Task RenewMihonDisplayAsync(int displayId, int width, int height, int dpi, CancellationToken ct)
     {
-        // The emulator refuses displays narrower or lower than 320 dp.
-        var minimum = (int)Math.Ceiling(320 * dpi / 160.0);
-        return SendConsoleCommandAsync(
-            $"multidisplay add {EmulatorView.Display} {Math.Max(minimum, width)} {Math.Max(minimum, height)} {dpi} {MihonDisplayFlags}");
+        var timer = Stopwatch.StartNew();
+        var minimum = MinimumDisplaySide(dpi);
+        width = Math.Max(minimum, width);
+        height = Math.Max(minimum, height);
+        var otherHeight = height - 16 >= minimum ? height - 16 : height + 16;
+        await SetMihonDisplayAsync(width, otherHeight, dpi);
+        await WaitForDisplaySizeAsync(displayId, width, otherHeight, ct);
+        await SetMihonDisplayAsync(width, height, dpi);
+        await WaitForDisplaySizeAsync(displayId, width, height, ct);
+        Log.Info($"Renewed Mihon's display after Android's saved state ({timer.ElapsedMilliseconds} ms)");
+    }
+
+    static async Task WaitForDisplaySizeAsync(int displayId, int width, int height, CancellationToken ct)
+    {
+        var timer = Stopwatch.StartNew();
+        while (true)
+        {
+            var size = await ShellAsync($"wm size -d {displayId}", ct);
+            if (size.Contains($"Physical size: {width}x{height}")) return;
+            if (timer.Elapsed > TimeSpan.FromSeconds(5))
+            {
+                Log.Warn($"Mihon's display didn't change to {width}x{height}: {size}");
+                return;
+            }
+            await Task.Delay(50, ct);
+        }
     }
 
     /// <summary>Removes Mihon's display, for when scrcpy shows Mihon instead.</summary>

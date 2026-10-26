@@ -329,11 +329,16 @@ sealed class LauncherForm : Form
         if (heavy) Log.Info($"Android's saved graphics take {textures.Length >> 20} MB, so it starts without its saved state");
         var stuck = state.Get("android_stuck") != null;
         if (stuck) Log.Info("Android got stuck showing Mihon's splash screen last time, so it starts without its saved state");
-        Device.Start(settings, gpu, coldBoot || changed || restarted || heavy || stuck);
+        var fresh = coldBoot || changed || restarted || heavy || stuck;
+        Device.Start(settings, gpu, fresh);
+        fromSavedState = !fresh;
         state.Remove("mihon_restarted");
         state.Remove("android_stuck");
         pendingHardware = hardware;
     }
+
+    /// <summary>This launch started Android from its saved state (a quick start).</summary>
+    bool fromSavedState;
 
     // Mihon's own pictures settle at about 64 MB here (1374x918 window); far more means something was left behind.
     const long SavedGraphicsLimit = 512L << 20;
@@ -454,6 +459,7 @@ sealed class LauncherForm : Form
         if (!await Device.SetMihonDisplayAsync(bounds.Width, bounds.Height, dpi))
             throw new LauncherException("The emulator couldn't create Mihon's display.");
         var display = await Device.MihonDisplayIdAsync(ct);
+        if (settings.Renderer == "vulkan" && fromSavedState) await Device.RenewMihonDisplayAsync(display, bounds.Width, bounds.Height, dpi, ct);
         await MihonApp.ShowOnDisplayAsync(display, ct);
 
         // Every time Mihon is shown, its splash screen is checked once it should have gone, until the window closes.
