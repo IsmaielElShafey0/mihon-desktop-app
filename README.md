@@ -49,8 +49,8 @@ the Start menu (and, if you leave the box ticked, to the desktop). No administra
 about 13 GB of free disk space plus room for downloaded chapters, and hardware virtualization: the
 **Windows Hypervisor Platform** feature has to be turned on. If it isn't, Mihon tells you how to turn it on.
 A graphics card (integrated is fine) makes scrolling smooth: Android is drawn by the graphics card. On a
-16-thread laptop, scrolling a list runs at 60 fps and takes about 1.2 of its 16 processors; an idle Mihon
-takes about a tenth of one.
+16-thread laptop, scrolling a list runs at 60 fps and takes about one of its 16 processors, browsing about a
+third of one, and an idle Mihon or a page that's still loading under a tenth.
 
 ## Using Mihon on a PC
 
@@ -80,9 +80,9 @@ Settings live in `%LOCALAPPDATA%\MihonWindows\settings.ini`. Close Mihon, edit t
 Mihon again. Each setting is explained in the file. The useful ones:
 
 - `dpi`: the size of everything in the window (`auto` follows your Windows display scaling).
-- `ram_mb`, `cpu_cores`: resources for Android. 1.5 GB and 4 cores (fewer on PCs with fewer than 8
-  processors) are plenty for the trimmed Android; more cores, up to the emulator's limit of 6, only add
-  background work.
+- `ram_mb`, `cpu_cores`: resources for Android. 1.5 GB and 2 cores are plenty for the trimmed Android. More
+  cores (the emulator takes up to 6) don't make it smoother: on a 16-thread laptop, 4 cores scrolled and
+  browsed with the same frame times as 2 but took a quarter to a third more CPU.
 - `animations`: `off` (the default) shows screens and pictures straight away, and loading spinners stand
   still. Every animated frame is drawn in full, so a turning spinner costs as much CPU as fast scrolling (about
   1.3 cores here); without animations a loading page costs no more than an idle one, and moving around Mihon

@@ -81,11 +81,11 @@ sealed class Settings
             File.WriteAllText(Paths.SettingsFile, Template);
         }
         var ini = new Ini(Paths.SettingsFile);
-        var fastAnimationsDefault = File.ReadAllText(Paths.SettingsFile).Contains(FastAnimationsExplanation);
-        if (TemplateKeys().Any(key => ini.Get(key) == null) || fastAnimationsDefault)
+        var written = File.ReadAllText(Paths.SettingsFile);
+        if (TemplateKeys().Any(key => ini.Get(key) == null) || OlderDefaultExplanations.Any(written.Contains))
         {
             // Written by an older version: rewrite it with the current explanations, keeping the values.
-            Upgrade(ini, fastAnimationsDefault);
+            Upgrade(ini, written);
             ini = new Ini(Paths.SettingsFile);
         }
         return new Settings
@@ -130,25 +130,30 @@ sealed class Settings
     static IEnumerable<string> TemplateKeys() =>
         TemplateLines().Where(line => !line.StartsWith("#") && line.IndexOf('=') > 0).Select(line => line.Substring(0, line.IndexOf('=')));
 
-    static void Upgrade(Ini current, bool fastAnimationsDefault)
+    static void Upgrade(Ini current, string written)
     {
         File.WriteAllLines(Paths.SettingsFile, TemplateLines().Select(line =>
         {
             var eq = line.IndexOf('=');
             if (line.StartsWith("#") || eq <= 0) return line;
             var key = line.Substring(0, eq);
-            return current.Get(key) is string value ? key + "=" + Migrate(key, value, current, fastAnimationsDefault) : line;
+            return current.Get(key) is string value ? key + "=" + Migrate(key, value, current, written) : line;
         }));
     }
 
-    // How settings.ini explained animations while they defaulted to fast.
+    // How settings.ini explained defaults that have changed since. A file that still says so was written with them.
     const string FastAnimationsExplanation = "fast plays them at double speed, so moving around Mihon feels quicker";
+    const string FourCoresExplanation = "4 cores keep Mihon smooth";
+    static readonly string[] OlderDefaultExplanations = { FastAnimationsExplanation, FourCoresExplanation };
 
     /// <summary>Replaces values that were defaults in older versions with the current ones.</summary>
-    static string Migrate(string key, string value, Ini current, bool fastAnimationsDefault) => key switch
+    static string Migrate(string key, string value, Ini current, string written) => key switch
     {
         // fast was the default until it turned out that a turning loading spinner costs as much CPU as scrolling.
-        "animations" when value == "fast" && fastAnimationsDefault => "off",
+        "animations" when value == "fast" && written.Contains(FastAnimationsExplanation) => "off",
+        // Half of the PC's processors, up to 4, was the default until 2 turned out to be as smooth with less CPU.
+        "cpu_cores" when written.Contains(FourCoresExplanation) &&
+                         value == Math.Max(2, Math.Min(4, Environment.ProcessorCount / 2)).ToString() => DefaultCores.ToString(),
         // 3072 was the default before Android got trimmed, and 2048 before the window drew straight from the emulator
         // (view=); now it gets by with 1.5 GB.
         "ram_mb" when (value == "3072" || value == "2048") && current.Get("view") == null => "1536",
@@ -163,17 +168,18 @@ sealed class Settings
     // The emulator refuses more than 6 cores ("Number of cores set to 6").
     const int MaxCores = 6;
 
-    // Half of the PC's processors, up to 4. On an 8-core/16-thread laptop 4 cores scroll at 60 fps and start Mihon as
-    // fast as 6, which only add background work.
-    static int DefaultCores => Math.Max(2, Math.Min(4, Environment.ProcessorCount / 2));
+    // On an 8-core/16-thread laptop, 2 cores scrolled and browsed with the same frame times as 3 or 4, while 4 took
+    // about a quarter more CPU scrolling and a third more browsing: each extra core adds the emulator's work of waking
+    // it and of signals between cores, not speed.
+    const int DefaultCores = 2;
 
     static string Template => $$"""
         # Mihon for Windows settings. Close Mihon, edit this file, then open Mihon again.
         # Delete a line (or the whole file) to go back to the default.
 
         # Memory in MB and CPU cores for the Android device. 1.5 GB is plenty once Android is trimmed
-        # (trim_android below), and 4 cores keep Mihon smooth; more of either (the emulator uses at most
-        # 6 cores) only takes more from your PC.
+        # (trim_android below), and 2 cores scroll as smoothly as more: each extra core (the emulator
+        # takes up to 6) only adds the emulator's own work and takes more from your PC.
         ram_mb=1536
         cpu_cores={{DefaultCores}}
 
