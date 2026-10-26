@@ -90,11 +90,11 @@ Mihon again. Each setting is explained in the file. The useful ones:
   1.3 cores here); without animations a loading page costs no more than an idle one, and moving around Mihon
   takes about a third less. Scrolling is just as smooth either way. `fast` plays animations at double speed,
   `normal` as on a phone.
-- `renderer=vulkan`: Android draws Mihon with Vulkan instead of OpenGL. Scrolling takes about 15% less CPU and
-  frames are done in about half the time, but the emulator uses about 200 MB more memory and closing takes a
-  second longer. It relies on an experimental emulator feature that keeps Vulkan in Android's saved state, so
-  if Mihon ever opens to a black window, set it back to `opengl`. Switching either way starts Android afresh
-  once.
+- `renderer`: `vulkan` (the default) has Android draw Mihon with Vulkan. Scrolling takes about 15% less CPU
+  than with `opengl` and frames are done in about half the time, but the emulator uses about 200 MB more memory
+  and closing takes a second longer. It relies on an experimental emulator feature that keeps Vulkan in
+  Android's saved state, so if Mihon ever opens to a black window, set it to `opengl`. On graphics without
+  Vulkan, Mihon draws with OpenGL anyway. Switching either way starts Android afresh once.
 - `trim_android=false`: switch Android's own apps (Google apps, Play services, Bluetooth) back on. They
   cost about 1 GB of memory and Mihon doesn't use them.
 - `view=scrcpy`: show Mihon through scrcpy, as a compressed video stream, the way versions before 1.0.11

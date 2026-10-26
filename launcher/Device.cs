@@ -427,10 +427,23 @@ static class Device
 
     /// <summary>
     /// Tells Android's apps which graphics API to draw with. Mihon reads it when it first draws, so it's set before
-    /// Mihon opens; switching the setting also changes the emulated hardware, which starts Android afresh.
+    /// Mihon opens; switching the setting also changes the emulated hardware, which starts Android afresh. Android
+    /// only has Vulkan when the emulator can offer it on this PC's graphics; without it, Mihon draws with OpenGL.
     /// </summary>
-    public static Task SetRendererAsync(string renderer, CancellationToken ct) =>
-        RunAsRootAsync("setprop debug.hwui.renderer " + (renderer == "vulkan" ? "skiavk" : "skiagl"), ct);
+    public static async Task SetRendererAsync(string renderer, CancellationToken ct)
+    {
+        var vulkan = renderer == "vulkan";
+        if (vulkan)
+        {
+            var driver = await AdbAsync(TimeSpan.FromSeconds(30), ct, "shell", "getprop ro.hardware.vulkan");
+            if (!driver.Ok || driver.Output.Trim().Length == 0)
+            {
+                Log.Warn("Android has no Vulkan here, so Mihon draws with OpenGL");
+                vulkan = false;
+            }
+        }
+        await RunAsRootAsync("setprop debug.hwui.renderer " + (vulkan ? "skiavk" : "skiagl"), ct);
+    }
 
     /// <summary>Applies the animations setting: off, fast (double speed) or normal.</summary>
     public static Task SetAnimationsAsync(string animations, CancellationToken ct)

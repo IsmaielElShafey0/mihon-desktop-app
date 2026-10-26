@@ -107,7 +107,7 @@ sealed class Settings
                 "fast" => "fast",
                 _ => "off",
             },
-            Renderer = ini.Get("renderer", "opengl").ToLowerInvariant() == "vulkan" ? "vulkan" : "opengl",
+            Renderer = ini.Get("renderer", "vulkan").ToLowerInvariant() == "opengl" ? "opengl" : "vulkan",
             AutoUpdate = ini.GetBool("auto_update", true),
             ReleaseRepo = ini.Get("release_repo", "mihonapp/mihon"),
             ReleaseAsset = ini.Get("release_asset", "mihon-x86_64-v*.apk"),
@@ -146,13 +146,16 @@ sealed class Settings
     // How settings.ini explained defaults that have changed since. A file that still says so was written with them.
     const string FastAnimationsExplanation = "fast plays them at double speed, so moving around Mihon feels quicker";
     const string FourCoresExplanation = "4 cores keep Mihon smooth";
-    static readonly string[] OlderDefaultExplanations = { FastAnimationsExplanation, FourCoresExplanation };
+    const string OpenGlRendererExplanation = "opengl: the emulator's standard way";
+    static readonly string[] OlderDefaultExplanations = { FastAnimationsExplanation, FourCoresExplanation, OpenGlRendererExplanation };
 
     /// <summary>Replaces values that were defaults in older versions with the current ones.</summary>
     static string Migrate(string key, string value, Ini current, string written) => key switch
     {
         // fast was the default until it turned out that a turning loading spinner costs as much CPU as scrolling.
         "animations" when value == "fast" && written.Contains(FastAnimationsExplanation) => "off",
+        // opengl was the default when drawing with Vulkan was first offered, as an opt-in.
+        "renderer" when value == "opengl" && written.Contains(OpenGlRendererExplanation) => "vulkan",
         // Half of the PC's processors, up to 4, was the default until 2 turned out to be as smooth with less CPU.
         "cpu_cores" when written.Contains(FourCoresExplanation) &&
                          value == Math.Max(2, Math.Min(4, Environment.ProcessorCount / 2)).ToString() => DefaultCores.ToString(),
@@ -228,11 +231,11 @@ sealed class Settings
         # fast: animations at double speed. normal: as on a phone.
         animations=off
 
-        # How Android draws Mihon. opengl: the emulator's standard way. vulkan: about 15% less CPU while
-        # scrolling and frames done in about half the time, but the emulator takes about 200 MB more memory
-        # and closing takes a second longer. Vulkan relies on an experimental emulator feature that keeps its
-        # state in Android's saved state; if Mihon ever opens to a black window, switch back to opengl.
-        renderer=opengl
+        # How Android draws Mihon. vulkan: about 15% less CPU while scrolling than opengl, and frames done in
+        # about half the time, for about 200 MB more emulator memory and a second longer to close. It relies
+        # on an experimental emulator feature that keeps Vulkan in Android's saved state; if Mihon ever opens
+        # to a black window, switch to opengl. On graphics without Vulkan, Mihon draws with OpenGL anyway.
+        renderer=vulkan
 
         # Check GitHub for a newer Mihon release every time Mihon starts, and install it.
         auto_update=true
