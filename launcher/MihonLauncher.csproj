@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- .NET Framework 4.8 ships with Windows 10 and 11, so Mihon.exe needs no runtime install. -->
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>Mihon</AssemblyName>
+    <RootNamespace>MihonWindows</RootNamespace>
+    <ApplicationIcon>Mihon.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateBindingRedirectsOutputType>false</GenerateBindingRedirectsOutputType>
+    <DebugType>embedded</DebugType>
+    <Deterministic>true</Deterministic>
+    <!-- The Mihon window reads Android's frames straight out of shared memory. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <Version>1.0.0</Version>
+    <Product>Mihon for Windows</Product>
+    <AssemblyTitle>Mihon for Windows</AssemblyTitle>
+    <Description>Runs the official Mihon Android app on Windows and keeps it up to date.</Description>
+    <Company>Mihon for Windows (unofficial)</Company>
+    <Copyright>Apache License 2.0</Copyright>
+
+    <!-- The GitHub repository that publishes this launcher (CI passes its own). -->
+    <LauncherRepository Condition="'$(LauncherRepository)' == ''">IsmaielElShafey0/mihon</LauncherRepository>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyMetadata Include="Repository" Value="$(LauncherRepository)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Mihon.ico" LogicalName="Mihon.ico" />
+    <EmbeddedResource Include="Mihon.png" LogicalName="Mihon.png" />
+  </ItemGroup>
+
+</Project>
