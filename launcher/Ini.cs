@@ -179,7 +179,8 @@ sealed class Settings
 
         # Memory in MB and CPU cores for the Android device. 1.5 GB is plenty once Android is trimmed
         # (trim_android below), and 2 cores scroll as smoothly as more: each extra core (the emulator
-        # takes up to 6) only adds the emulator's own work and takes more from your PC.
+        # takes up to 6) only adds the emulator's own work and takes more from your PC. 1 core takes
+        # less CPU still while scrolling, but Mihon starts about half again slower and screens hitch more.
         ram_mb=1536
         cpu_cores={{DefaultCores}}
 

@@ -82,7 +82,9 @@ Mihon again. Each setting is explained in the file. The useful ones:
 - `dpi`: the size of everything in the window (`auto` follows your Windows display scaling).
 - `ram_mb`, `cpu_cores`: resources for Android. 1.5 GB and 2 cores are plenty for the trimmed Android. More
   cores (the emulator takes up to 6) don't make it smoother: on a 16-thread laptop, 4 cores scrolled and
-  browsed with the same frame times as 2 but took a quarter to a third more CPU.
+  browsed with the same frame times as 2 but took a quarter to a third more CPU. 1 core takes about a third
+  less CPU while scrolling than 2, but Mihon starts about half again slower (0.9 s instead of 0.6 s) and
+  screens hitch a little more often.
 - `animations`: `off` (the default) shows screens and pictures straight away, and loading spinners stand
   still. Every animated frame is drawn in full, so a turning spinner costs as much CPU as fast scrolling (about
   1.3 cores here); without animations a loading page costs no more than an idle one, and moving around Mihon
