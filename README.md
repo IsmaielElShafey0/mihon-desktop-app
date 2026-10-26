@@ -22,8 +22,10 @@ Android code), so it can't simply be rebuilt as a Windows program. `Mihon.exe` d
    together with the window, so Mihon switches between its phone and tablet layouts the way a desktop app
    would. The emulator draws that screen with the graphics card and hands every finished frame to the
    window through shared memory, so nothing is video-compressed on the way: scrolling runs at 60 fps on
-   about half the CPU that a video stream needs. If that doesn't work on a PC, Mihon is shown with
-   [scrcpy](https://github.com/Genymobile/scrcpy) instead, as a compressed video stream.
+   about half the CPU that a video stream needs, and the title bar takes the color along the top of
+   Mihon's screen so it blends in (black above the reader's black background). If that doesn't work on a
+   PC, Mihon is shown with [scrcpy](https://github.com/Genymobile/scrcpy) instead, as a compressed video
+   stream.
 
 **Updates:** every time you open Mihon, the launcher asks GitHub for the latest Mihon release. If it's newer
 than the one inside Android, it downloads and installs it before the window opens. Your library, history,

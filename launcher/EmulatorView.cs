@@ -50,6 +50,7 @@ sealed class EmulatorView : Form
     IntPtr picture;
     string pictureMemory;
     int pictureBytes, pictureMaps, failedPictures;
+    int titleBarColor = -1;
     uint[] pixels = new uint[0];
     int pixelsWidth, pixelsHeight;
     bool streaming, closed, touching, fullScreen;
@@ -118,6 +119,7 @@ sealed class EmulatorView : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        titleBarColor = -1;
         // Frames are handed to the window as they arrive, so it needs its handle first.
         if (streaming) return;
         streaming = true;
@@ -305,7 +307,7 @@ sealed class EmulatorView : Form
     {
         settleTimer.Stop();
         if (closed || minimized) return;
-        RequestPicture();
+        if (!RequestPicture()) MatchTitleBar();
     }
 
     /// <summary>Asks the emulator for its current picture of Mihon's display, which arrives in shared memory.</summary>
@@ -359,6 +361,7 @@ sealed class EmulatorView : Form
         if (copied) Draw();
         if (written) failedPictures = 0;
         else if (++failedPictures == 3) Log.Warn("The emulator doesn't hand over its current picture, so only its stream of frames shows");
+        MatchTitleBar();
     }
 
     /// <summary>
@@ -419,6 +422,47 @@ sealed class EmulatorView : Form
     }
 
     protected override void OnPaint(PaintEventArgs e) => Draw();
+
+    // Title bar ------------------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Gives the title bar the color along the top of Mihon's picture, so it blends in with Mihon's own top bar, or with
+    /// the background around pages while reading, instead of standing out (in the Windows accent color, say). It only
+    /// changes once the picture has settled, so it doesn't flicker while scrolling, and a top edge of pictures (a
+    /// webtoon page) keeps the color from before.
+    /// </summary>
+    void MatchTitleBar()
+    {
+        var color = TopColor();
+        if (color < 0 || color == titleBarColor) return;
+        titleBarColor = color;
+        int red = (color >> 16) & 0xFF, green = (color >> 8) & 0xFF, blue = color & 0xFF;
+        var dark = red * 299 + green * 587 + blue * 114 < 128 * 1000;
+        // Dark mode also gives the minimize, maximize and close buttons light symbols.
+        SetWindowAttribute(Native.DWMWA_USE_IMMERSIVE_DARK_MODE, dark ? 1 : 0);
+        var colorRef = (blue << 16) | (green << 8) | red;
+        SetWindowAttribute(Native.DWMWA_CAPTION_COLOR, colorRef);
+        SetWindowAttribute(Native.DWMWA_BORDER_COLOR, colorRef);
+        SetWindowAttribute(Native.DWMWA_TEXT_COLOR, dark ? 0xFFFFFF : 0x000000);
+    }
+
+    void SetWindowAttribute(int attribute, int value) => Native.DwmSetWindowAttribute(Handle, attribute, ref value, sizeof(int));
+
+    /// <summary>The color of at least half of the top row of Mihon's picture (as 0xRRGGBB), or -1.</summary>
+    int TopColor()
+    {
+        if (pixelsWidth == 0) return -1;
+        const int samples = 64;
+        var counts = new Dictionary<int, int>();
+        for (var i = 0; i < samples; i++)
+        {
+            var color = (int)(pixels[(2 * i + 1) * pixelsWidth / (2 * samples)] & 0xFFFFFF);
+            counts[color] = counts.TryGetValue(color, out var count) ? count + 1 : 1;
+        }
+        foreach (var color in counts)
+            if (color.Value * 2 >= samples) return color.Key;
+        return -1;
+    }
 
     // Size and place -------------------------------------------------------------------------------------------------
 

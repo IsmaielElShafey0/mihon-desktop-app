@@ -23,6 +23,11 @@ static class Native
     [DllImport("gdi32.dll")]
     public static extern int StretchDIBits(IntPtr dc, int x, int y, int width, int height, int srcX, int srcY, int srcWidth,
         int srcHeight, uint[] bits, byte[] info, uint usage, uint rop);
+    [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref int value, int size);
+
+    // Dark mode works from Windows 10 2004; the colors only on Windows 11.
+    public const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20, DWMWA_BORDER_COLOR = 34, DWMWA_CAPTION_COLOR = 35, DWMWA_TEXT_COLOR = 36;
+
     [DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetProcessInformation(IntPtr process, int informationClass, ref PowerThrottlingState information, int size);
 
     public const int ProcessPowerThrottling = 4;
