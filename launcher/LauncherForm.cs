@@ -381,6 +381,7 @@ sealed class LauncherForm : Form
         }
         await Device.TrimAsync(settings.TrimAndroid, state, status => Report(status, null), ct);
         await Device.SetAnimationsAsync(settings.Animations, ct);
+        await Device.SetRendererAsync(settings.Renderer, ct);
         await Device.DisableOnScreenKeyboardsAsync(ct);
         await Device.StopLogMirrorAsync(ct);
 

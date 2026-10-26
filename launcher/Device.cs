@@ -76,13 +76,19 @@ static class Device
     }
 
     /// <summary>
-    /// Emulated hardware Mihon doesn't use: protected VMs, the sound card (there's no audio anyway), Bluetooth radio
-    /// emulation, and Vulkan (Android draws with OpenGL here, so the emulator needn't load the graphics driver's
-    /// Vulkan side). Ultra-wideband stays on: without it, Android's UWB service asks for the missing chip every
-    /// second, forever. Its device needs the console that Android's log mirror uses, so that stays too, and the log
-    /// mirror is stopped inside Android instead (<see cref="StopLogMirrorAsync"/>).
+    /// Emulated hardware Mihon doesn't use: protected VMs, the sound card (there's no audio anyway) and Bluetooth radio
+    /// emulation. Ultra-wideband stays on: without it, Android's UWB service asks for the missing chip every second,
+    /// forever. Its device needs the console that Android's log mirror uses, so that stays too, and the log mirror is
+    /// stopped inside Android instead (<see cref="StopLogMirrorAsync"/>).
     /// </summary>
-    const string UnusedFeatures = "-AndroidVirtualizationFramework,-VirtioSndCard,-BluetoothEmulation,-Vulkan";
+    const string UnusedHardware = "-AndroidVirtualizationFramework,-VirtioSndCard,-BluetoothEmulation";
+
+    /// <summary>
+    /// The emulator features to switch. With OpenGL, Vulkan goes off too, so the emulator needn't load the graphics
+    /// driver's Vulkan side (about 200 MB). With Vulkan, VulkanSnapshots keeps Mihon's Vulkan state in the quick-boot
+    /// snapshot; without it, Mihon comes back as a black window.
+    /// </summary>
+    static string Features(Settings settings) => UnusedHardware + (settings.Renderer == "vulkan" ? ",VulkanSnapshots" : ",-Vulkan");
 
     /// <summary>
     /// Everything that defines the emulated hardware. A quick-boot snapshot only works on the hardware it was saved
@@ -90,7 +96,7 @@ static class Device
     /// leaves Android unreachable. So a change means one cold boot.
     /// </summary>
     public static string HardwareSignature(Settings settings, string gpu) =>
-        $"ram={settings.RamMb},cores={settings.CpuCores},gpu={gpu},features={UnusedFeatures},view={settings.View}";
+        $"ram={settings.RamMb},cores={settings.CpuCores},gpu={gpu},features={Features(settings)},view={settings.View}";
 
     // Display flags for Mihon's display: public, trusted, own content only, touch, rotates with content. Unlike the
     // emulator's defaults, no system decorations, so Android puts no status bar or taskbar on it.
@@ -197,7 +203,7 @@ static class Device
             // Otherwise the emulator raises the memory to 4 GB, its minimum for this Android version, although a
             // trimmed Android with Mihon runs comfortably in 1.5 GB. (It doesn't put Android in low-RAM mode.)
             "-lowram",
-            "-feature", UnusedFeatures,
+            "-feature", Features(settings),
         };
         if (settings.View == "emulator")
         {
@@ -385,6 +391,13 @@ static class Device
     /// <summary>Runs a shell script as root, which Google APIs system images allow.</summary>
     public static Task<string> RunAsRootAsync(string script, CancellationToken ct) => ShellAsync(
         $"echo {Convert.ToBase64String(Encoding.UTF8.GetBytes(script.Replace("\r\n", "\n")))} | base64 -d | su 0 sh", ct);
+
+    /// <summary>
+    /// Tells Android's apps which graphics API to draw with. Mihon reads it when it first draws, so it's set before
+    /// Mihon opens; switching the setting also changes the emulated hardware, which starts Android afresh.
+    /// </summary>
+    public static Task SetRendererAsync(string renderer, CancellationToken ct) =>
+        RunAsRootAsync("setprop debug.hwui.renderer " + (renderer == "vulkan" ? "skiavk" : "skiagl"), ct);
 
     /// <summary>Applies the animations setting: off, fast (double speed) or normal.</summary>
     public static Task SetAnimationsAsync(string animations, CancellationToken ct)

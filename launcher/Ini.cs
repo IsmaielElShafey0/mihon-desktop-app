@@ -67,6 +67,7 @@ sealed class Settings
     public string View { get; private set; }
     public bool TrimAndroid { get; private set; }
     public string Animations { get; private set; }
+    public string Renderer { get; private set; }
     public bool AutoUpdate { get; private set; }
     public string ReleaseRepo { get; private set; }
     public string ReleaseAsset { get; private set; }
@@ -106,6 +107,7 @@ sealed class Settings
                 "fast" => "fast",
                 _ => "off",
             },
+            Renderer = ini.Get("renderer", "opengl").ToLowerInvariant() == "vulkan" ? "vulkan" : "opengl",
             AutoUpdate = ini.GetBool("auto_update", true),
             ReleaseRepo = ini.Get("release_repo", "mihonapp/mihon"),
             ReleaseAsset = ini.Get("release_asset", "mihon-x86_64-v*.apk"),
@@ -225,6 +227,12 @@ sealed class Settings
         # Mihon takes about a third less. Scrolling is just as smooth either way.
         # fast: animations at double speed. normal: as on a phone.
         animations=off
+
+        # How Android draws Mihon. opengl: the emulator's standard way. vulkan: about 15% less CPU while
+        # scrolling and frames done in about half the time, but the emulator takes about 200 MB more memory
+        # and closing takes a second longer. Vulkan relies on an experimental emulator feature that keeps its
+        # state in Android's saved state; if Mihon ever opens to a black window, switch back to opengl.
+        renderer=opengl
 
         # Check GitHub for a newer Mihon release every time Mihon starts, and install it.
         auto_update=true
