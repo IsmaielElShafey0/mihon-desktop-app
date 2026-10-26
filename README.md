@@ -1,4 +1,4 @@
-# Mihon for Windows
+# Mihon Desktop App
 
 An unofficial way to use [Mihon](https://github.com/mihonapp/mihon) on Windows 10 and 11. It runs the
 **official Mihon Android app** and installs every new Mihon release automatically.
@@ -112,13 +112,13 @@ Mihon's backups also work with Mihon on a phone, in both directions.
 
 ## Troubleshooting
 
-- **Logs:** `%LOCALAPPDATA%\MihonWindows\logs`, or **Open logs** in the Mihon for Windows window.
+- **Logs:** `%LOCALAPPDATA%\MihonWindows\logs`, or **Open logs** in the Mihon Desktop App window.
 - **Android won't start:** run `Mihon.exe --cold-boot` to start Android without its saved state.
 - **The window shows only Mihon's splash screen:** Android occasionally leaves the splash on top of Mihon. The
   launcher notices within about 15 seconds and clears it, and the next start begins afresh.
 - **Start over:** `Mihon.exe --reset-android` deletes the Android device (including your library inside
   it) and sets it up again. Make a backup first.
-- **Uninstall:** Settings › Apps › Installed apps › **Mihon for Windows** › Uninstall. You can choose to keep
+- **Uninstall:** Settings › Apps › Installed apps › **Mihon Desktop App** › Uninstall. You can choose to keep
   the Android device so a reinstall picks up where you left off.
 
 ## What gets downloaded

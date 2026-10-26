@@ -7,7 +7,7 @@ namespace MihonWindows;
 
 static class AppInfo
 {
-    public const string Name = "Mihon for Windows";
+    public const string Name = "Mihon Desktop App";
     public const string AppUserModelId = "MihonForWindows.Mihon";
 
     public static readonly Version AssemblyVersion = Assembly.GetExecutingAssembly().GetName().Version;

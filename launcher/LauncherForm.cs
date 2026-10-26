@@ -128,10 +128,10 @@ sealed class LauncherForm : Form
     void ShowWelcome(bool update)
     {
         SetPage(Page.Welcome);
-        title.Text = update ? "Update Mihon for Windows" : "Mihon for Windows";
+        title.Text = update ? "Update " + AppInfo.Name : AppInfo.Name;
         if (update)
         {
-            message.Text = $"Version {AppInfo.Version} of Mihon for Windows is ready to install. Your Mihon library, downloads and settings stay as they are.";
+            message.Text = $"Version {AppInfo.Version} of {AppInfo.Name} is ready to install. Your Mihon library, downloads and settings stay as they are.";
             primary.Text = "Update";
         }
         else

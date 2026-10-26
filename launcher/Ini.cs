@@ -174,7 +174,7 @@ sealed class Settings
     const int DefaultCores = 2;
 
     static string Template => $$"""
-        # Mihon for Windows settings. Close Mihon, edit this file, then open Mihon again.
+        # Mihon Desktop App settings. Close Mihon, edit this file, then open Mihon again.
         # Delete a line (or the whole file) to go back to the default.
 
         # Memory in MB and CPU cores for the Android device. 1.5 GB is plenty once Android is trimmed

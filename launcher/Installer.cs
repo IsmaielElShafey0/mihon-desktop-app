@@ -39,7 +39,7 @@ static class Installer
         using var key = Registry.CurrentUser.CreateSubKey(UninstallKey);
         key.SetValue("DisplayName", AppInfo.Name);
         key.SetValue("DisplayVersion", AppInfo.Version);
-        key.SetValue("Publisher", "Mihon for Windows (unofficial)");
+        key.SetValue("Publisher", AppInfo.Name + " (unofficial)");
         key.SetValue("DisplayIcon", Paths.InstalledExe + ",0");
         key.SetValue("InstallLocation", Paths.InstallDir);
         key.SetValue("UninstallString", Proc.Quote(Paths.InstalledExe) + " --uninstall");
@@ -74,7 +74,7 @@ static class Installer
     public static void Uninstall()
     {
         var answer = MessageBox.Show(
-            "Remove Mihon for Windows from this PC?\n\n" +
+            $"Remove {AppInfo.Name} from this PC?\n\n" +
             "Yes: remove the app and its Android device, including your Mihon library, downloads and settings.\n" +
             "No: remove the app but keep the Android device, so reinstalling picks up where you left off.\n\n" +
             "Tip: make a backup in Mihon first (More › Backup and restore).",

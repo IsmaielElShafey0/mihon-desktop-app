@@ -59,7 +59,8 @@ static class Program
             {
                 try
                 {
-                    if (process.Id == self.Id || process.MainModule.FileVersionInfo.ProductName != AppInfo.Name) continue;
+                    // "Mihon for Windows" is what the app was called before.
+                    if (process.Id == self.Id || process.MainModule.FileVersionInfo.ProductName is not (AppInfo.Name or "Mihon for Windows")) continue;
                     var window = process.MainWindowHandle;
                     if (window == IntPtr.Zero) continue;
                     if (Native.IsIconic(window)) Native.ShowWindow(window, Native.SW_RESTORE);

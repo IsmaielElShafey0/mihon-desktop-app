@@ -18,10 +18,10 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 
     <Version>1.0.0</Version>
-    <Product>Mihon for Windows</Product>
-    <AssemblyTitle>Mihon for Windows</AssemblyTitle>
+    <Product>Mihon Desktop App</Product>
+    <AssemblyTitle>Mihon Desktop App</AssemblyTitle>
     <Description>Runs the official Mihon Android app on Windows and keeps it up to date.</Description>
-    <Company>Mihon for Windows (unofficial)</Company>
+    <Company>Mihon Desktop App (unofficial)</Company>
     <Copyright>Apache License 2.0</Copyright>
 
     <!-- The GitHub repository that publishes this launcher (CI passes its own). -->
