@@ -30,6 +30,10 @@ sealed class EmulatorView : Form
     readonly TaskCompletionSource<bool> firstFrame = new(TaskCreationOptions.RunContinuationsAsynchronously);
     readonly System.Windows.Forms.Timer resizeTimer = new() { Interval = 150 };
     readonly System.Windows.Forms.Timer wheelTimer = new() { Interval = 120 };
+    readonly System.Windows.Forms.Timer moveTimer = new() { Interval = 10 };
+    readonly Stopwatch moveClock = Stopwatch.StartNew();
+    long lastMove = -MoveInterval;
+    (int Finger, Point At)? pendingMove;
     readonly HashSet<int> keysDown = new();
     readonly int wheelStep, touchSlop;
     Point wheelFinger;
@@ -70,6 +74,7 @@ sealed class EmulatorView : Form
         wheelStep = 64 * dpi / 160;
         touchSlop = 8 * dpi / 160;
         wheelTimer.Tick += (_, _) => EndWheel();
+        moveTimer.Tick += (_, _) => SendPendingMove();
         AutoScaleMode = AutoScaleMode.None;
         Text = "Mihon";
         Icon = new Icon(Resources.Open("Mihon.ico"));
@@ -358,6 +363,35 @@ sealed class EmulatorView : Form
     // The left button is a finger, so dragging scrolls like on a phone.
     void Touch(Point point, bool down) => Finger(0, ToDisplay(point), down);
 
+    // Android draws at most 60 frames a second and smooths touch input itself, so a moving finger is sent at most every
+    // 8 ms. A gaming mouse or a precision touchpad reports up to 1000 moves a second, and each would cross gRPC, the
+    // emulator and Android's input pipeline: at that rate, drag-scrolling cost about half a core more.
+    const int MoveInterval = 8;
+
+    /// <summary>Moves a finger that is down. The newest place wins when moves come faster than they're sent.</summary>
+    void MoveFinger(int id, Point at)
+    {
+        pendingMove = (id, at);
+        if (moveClock.ElapsedMilliseconds - lastMove >= MoveInterval) SendPendingMove();
+        else moveTimer.Start();
+    }
+
+    void SendPendingMove()
+    {
+        moveTimer.Stop();
+        if (pendingMove is not { } move) return;
+        pendingMove = null;
+        lastMove = moveClock.ElapsedMilliseconds;
+        Finger(move.Finger, move.At, true);
+    }
+
+    /// <summary>Forgets a move not sent yet; the finger is about to come down or lift somewhere else.</summary>
+    void DropPendingMove()
+    {
+        moveTimer.Stop();
+        pendingMove = null;
+    }
+
     void Back()
     {
         SendInput(1, new Pb().Int(2, 2 /* keypress */).Text(4, "GoBack"));
@@ -387,7 +421,7 @@ sealed class EmulatorView : Form
                 Math.Max(0, Math.Min(frameHeight - 1, wheelFinger.Y + moveY)));
         }
         wheelFinger = next;
-        Finger(1, next, true);
+        MoveFinger(1, next);
         wheelTimer.Stop();
         wheelTimer.Start();
     }
@@ -396,6 +430,7 @@ sealed class EmulatorView : Form
     {
         wheeling = true;
         wheelFinger = ToDisplay(pointer);
+        DropPendingMove();
         Finger(1, wheelFinger, true);
         // Android starts scrolling once a finger has moved past its touch slop, so the first move covers that too.
         moveX += Math.Sign(moveX) * touchSlop;
@@ -407,6 +442,7 @@ sealed class EmulatorView : Form
         wheelTimer.Stop();
         if (!wheeling) return;
         wheeling = false;
+        DropPendingMove();
         Finger(1, wheelFinger, false);
     }
 
@@ -419,6 +455,7 @@ sealed class EmulatorView : Form
             case MouseButtons.Left:
                 touching = true;
                 Capture = true;
+                DropPendingMove();
                 Touch(e.Location, true);
                 break;
             case MouseButtons.Right:
@@ -431,7 +468,7 @@ sealed class EmulatorView : Form
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
-        if (touching) Touch(e.Location, true);
+        if (touching) MoveFinger(0, ToDisplay(e.Location));
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
@@ -440,6 +477,7 @@ sealed class EmulatorView : Form
         if (e.Button != MouseButtons.Left || !touching) return;
         touching = false;
         Capture = false;
+        DropPendingMove();
         Touch(e.Location, false);
     }
 
@@ -448,6 +486,7 @@ sealed class EmulatorView : Form
         base.OnMouseCaptureChanged(e);
         if (!touching) return;
         touching = false;
+        DropPendingMove();
         Touch(PointToClient(Cursor.Position), false);
     }
 
@@ -587,6 +626,7 @@ sealed class EmulatorView : Form
     {
         resizeTimer.Dispose();
         wheelTimer.Dispose();
+        moveTimer.Dispose();
         lock (frameGate)
         {
             closed = true;
