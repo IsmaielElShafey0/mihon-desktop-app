@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -45,7 +47,19 @@ static class Device
         return running;
     }
 
-    static bool IsQemu(Process process) => process.ProcessName.StartsWith("qemu-system-", StringComparison.Ordinal);
+    /// <summary>Android's emulator process: qemu, under its own name or under Mihon's (see StartAsMihon).</summary>
+    static bool IsQemu(Process process)
+    {
+        if (process.ProcessName.StartsWith("qemu-system-", StringComparison.Ordinal)) return true;
+        try
+        {
+            return process.ProcessName == "Mihon" && string.Equals(process.MainModule.FileName, Paths.QemuAsMihon, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false; // a process we may not inspect, or one that just exited
+        }
+    }
 
     /// <summary>
     /// The emulator, or with <paramref name="netsim"/> its network/Bluetooth helper netsimd, which outlives the
@@ -59,7 +73,7 @@ static class Device
             try
             {
                 var name = process.ProcessName;
-                if ((netsim ? name == "netsimd" : name == "emulator" || name.StartsWith("qemu-system-", StringComparison.Ordinal)) &&
+                if ((netsim ? name == "netsimd" : name == "emulator" || IsQemu(process)) &&
                     process.MainModule.FileName.StartsWith(Paths.Sdk, StringComparison.OrdinalIgnoreCase))
                 {
                     found.Add(process);
@@ -93,10 +107,12 @@ static class Device
     /// <summary>
     /// Everything that defines the emulated hardware. A quick-boot snapshot only works on the hardware it was saved
     /// with: the emulator even resizes the memory back to the snapshot's, and a snapshot loaded with other features
-    /// leaves Android unreachable. So a change means one cold boot.
+    /// leaves Android unreachable. So a change means one cold boot. How the emulator was started counts too: qemu started
+    /// as Mihon.exe aborted while restoring a snapshot saved by qemu that emulator.exe had started (3 times out of 3).
     /// </summary>
-    public static string HardwareSignature(Settings settings, string gpu) =>
-        $"ram={settings.RamMb},cores={settings.CpuCores},gpu={gpu},features={Features(settings)},view={settings.View}";
+    public static string HardwareSignature(Settings settings, string gpu, bool asMihon) =>
+        $"ram={settings.RamMb},cores={settings.CpuCores},gpu={gpu},features={Features(settings)},view={settings.View}" +
+        (asMihon ? ",start=mihon" : "");
 
     // Display flags for Mihon's display: public, trusted, own content only, touch, rotates with content. Unlike the
     // emulator's defaults, no system decorations, so Android puts no status bar or taskbar on it.
@@ -205,7 +221,7 @@ static class Device
         try
         {
             using var process = Process.GetProcessById(id);
-            return process.ProcessName.StartsWith("qemu-system-", StringComparison.Ordinal);
+            return IsQemu(process);
         }
         catch (ArgumentException)
         {
@@ -223,8 +239,11 @@ static class Device
         return port;
     }
 
-    /// <summary>Starts the emulator without a window; its output goes to logs\emulator.log.</summary>
-    public static void Start(Settings settings, string gpu, bool coldBoot)
+    /// <summary>
+    /// Starts the emulator without a window; its output goes to logs\emulator.log. <paramref name="asMihon"/> starts
+    /// Android's process as Mihon.exe (see StartAsMihon).
+    /// </summary>
+    public static void Start(Settings settings, string gpu, bool coldBoot, bool asMihon)
     {
         var args = new List<string>
         {
@@ -262,6 +281,41 @@ static class Device
         Directory.CreateDirectory(Paths.AndroidUserHome);
         Directory.CreateDirectory(Paths.AvdHome);
 
+        startArgs = args;
+        RunningAsMihon = asMihon && StartAsMihon(args);
+        if (RunningAsMihon) return;
+        if (asMihon) FallBackFromMihon();
+        else StartThroughEmulatorExe(args);
+    }
+
+    // How Android was last started, so a start as Mihon.exe that fails can be repeated through emulator.exe.
+    static List<string> startArgs;
+
+    /// <summary>Android's process was started as Mihon.exe and is the one running.</summary>
+    public static bool RunningAsMihon { get; private set; }
+
+    /// <summary>Starting Android's process as Mihon.exe didn't work, so emulator.exe started it instead.</summary>
+    public static bool StartAsMihonFailed { get; private set; }
+
+    /// <summary>
+    /// Android's process can be started as Mihon.exe: with the graphics card, shown in the launcher's window, by the
+    /// emulator version whose start the launcher knows.
+    /// </summary>
+    public static bool CanStartAsMihon(Settings settings, string gpu) =>
+        gpu == "host" && settings.View == "emulator" &&
+        Version.TryParse(new Ini(Path.Combine(Paths.EmulatorDir, "source.properties")).Get("Pkg.Revision") ?? "", out var version) &&
+        version.Major == 37;
+
+    /// <summary>Starts Android through emulator.exe afresh, as its saved state is from a start as Mihon.exe.</summary>
+    static void FallBackFromMihon()
+    {
+        StartAsMihonFailed = true;
+        if (!startArgs.Contains("-no-snapshot-load")) startArgs.Add("-no-snapshot-load");
+        StartThroughEmulatorExe(startArgs);
+    }
+
+    static void StartThroughEmulatorExe(IEnumerable<string> args)
+    {
         // cmd sends the output straight to a file, so the emulator doesn't depend on this process
         // staying alive to read it (keep_running leaves Android up after the launcher exits).
         var command = $"{Proc.Quote(Paths.Emulator)} {string.Join(" ", args.Select(Proc.Quote))} > {Proc.Quote(Log.EmulatorLog)} 2>&1";
@@ -271,12 +325,71 @@ static class Device
         Process.Start(psi)?.Dispose();
     }
 
+    /// <summary>
+    /// Starts Android's emulator process (qemu) directly, through a hard link named Mihon.exe: the emulator's own file,
+    /// unchanged, under a second name. Task Manager lists a process inside its parent's row when both run a file of the
+    /// same name, so Android's memory and CPU show under Mihon, with Mihon's icon, instead of on a row of its own as
+    /// "qemu-system-x86_64". emulator.exe would start qemu under its own name, so the launcher gives qemu what
+    /// emulator.exe 37 gives it (see CanStartAsMihon).
+    /// </summary>
+    static bool StartAsMihon(IEnumerable<string> args)
+    {
+        try
+        {
+            // Made afresh at every start, so it never keeps an older emulator's file around after an update.
+            if (File.Exists(Paths.QemuAsMihon)) File.Delete(Paths.QemuAsMihon);
+            if (!Native.CreateHardLink(Paths.QemuAsMihon, Paths.Qemu, IntPtr.Zero)) throw new Win32Exception();
+            Proc.StartWithOutputTo(Paths.QemuAsMihon, args, QemuEnvironment(), Paths.Root, Log.EmulatorLog);
+            Log.Info("Started Android's emulator process as Mihon.exe");
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or Win32Exception)
+        {
+            Log.Warn("Couldn't start Android's emulator process as Mihon.exe, so emulator.exe starts it: " + e.Message);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// What emulator.exe (version 37) sets up for qemu: its libraries on the path, where the emulator lives, and Qt
+    /// settings (software drawing for Qt's own windows, no scaling, no warnings). It also passes its own process id,
+    /// which qemu only reports in metrics, which are off.
+    /// </summary>
+    static Dictionary<string, string> QemuEnvironment()
+    {
+        var environment = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (DictionaryEntry variable in Environment.GetEnvironmentVariables()) environment[(string)variable.Key] = (string)variable.Value;
+        foreach (var variable in Proc.AndroidEnvironment) environment[variable.Key] = variable.Value;
+        var lib = Path.Combine(Paths.EmulatorDir, "lib64");
+        environment.TryGetValue("PATH", out var path);
+        environment["PATH"] = string.Join(";", Path.Combine(lib, "qt", "lib"), Path.Combine(lib, "vulkan"), Path.Combine(lib, "gles_swiftshader"), lib, path);
+        environment["ANDROID_EMULATOR_LAUNCHER_DIR"] = Paths.EmulatorDir;
+        environment["LC_ALL"] = "C";
+        environment["MESA_RGB_VISUAL"] = "TrueColor 24";
+        environment["QT_LOGGING_RULES"] = "default.warning=false";
+        environment["QT_QPA_PLATFORM_PLUGIN_PATH"] = Path.Combine(lib, "qt", "plugins");
+        environment["QT_OPENGL"] = "software";
+        environment["QMLSCENE_DEVICE"] = "softwarecontext";
+        environment["QT_SCALE_FACTOR"] = environment["QT_AUTO_SCREEN_SCALE_FACTOR"] = environment["QT_SCREEN_SCALE_FACTORS"] = "none";
+        return environment;
+    }
+
     public static async Task WaitForBootAsync(CancellationToken ct)
     {
         await Proc.RunAsync(Paths.Adb, new[] { "start-server" }, TimeSpan.FromSeconds(30), ct);
         var timer = Stopwatch.StartNew();
         while (!await IsBootedAsync(ct))
         {
+            if (RunningAsMihon && !IsRunning())
+            {
+                // Started as Mihon.exe, Android's process ended right away: start it the emulator's own way.
+                RunningAsMihon = false;
+                Log.Warn("Android's emulator process ended as it started as Mihon.exe, so emulator.exe starts it afresh, " +
+                         "now and from now on; its log is in emulator.mihon.log");
+                try { File.Copy(Log.EmulatorLog, Path.Combine(Paths.Logs, "emulator.mihon.log"), true); } catch (IOException) { }
+                FallBackFromMihon();
+                timer.Restart();
+            }
             if (timer.Elapsed > TimeSpan.FromSeconds(20) && !IsRunning())
                 throw new LauncherException("The Android emulator closed while it was starting.", Log.Tail(Log.EmulatorLog));
             if (timer.Elapsed > TimeSpan.FromMinutes(8))

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,7 +23,7 @@ sealed class ProcResult
 static class Proc
 {
     /// <summary>Keeps our Android tools apart from any Android SDK or adb already on this PC.</summary>
-    static readonly Dictionary<string, string> AndroidEnvironment = new()
+    public static readonly IReadOnlyDictionary<string, string> AndroidEnvironment = new Dictionary<string, string>
     {
         ["ANDROID_HOME"] = Paths.Sdk,
         ["ANDROID_SDK_ROOT"] = Paths.Sdk,
@@ -75,6 +77,61 @@ static class Proc
         }
         process.WaitForExit(); // flushes the output readers
         lock (output) return new ProcResult { ExitCode = process.ExitCode, Output = output.ToString() };
+    }
+
+    /// <summary>
+    /// Starts a program without a window that writes its output straight to a file, so it doesn't depend on this
+    /// process reading it and can outlive it. It inherits that file's handle and nothing else.
+    /// </summary>
+    public static int StartWithOutputTo(string exe, IEnumerable<string> args, IDictionary<string, string> environment,
+        string directory, string outputFile)
+    {
+        using var output = new FileStream(outputFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+        if (!Native.SetHandleInformation(output.SafeFileHandle, Native.HANDLE_FLAG_INHERIT, Native.HANDLE_FLAG_INHERIT))
+            throw new Win32Exception();
+        var handle = output.SafeFileHandle.DangerousGetHandle();
+
+        var size = IntPtr.Zero;
+        Native.InitializeProcThreadAttributeList(IntPtr.Zero, 1, 0, ref size);
+        var attributes = Marshal.AllocHGlobal(size);
+        var handles = Marshal.AllocHGlobal(IntPtr.Size);
+        // Variables sorted by name, each ending in a null character, and one more at the end.
+        var block = Marshal.StringToHGlobalUni(string.Concat(environment
+            .OrderBy(variable => variable.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(variable => variable.Key + "=" + variable.Value + "\0")) + "\0");
+        var initialized = false;
+        try
+        {
+            if (!Native.InitializeProcThreadAttributeList(attributes, 1, 0, ref size)) throw new Win32Exception();
+            initialized = true;
+            Marshal.WriteIntPtr(handles, handle);
+            if (!Native.UpdateProcThreadAttribute(attributes, 0, (IntPtr)Native.PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles,
+                    (IntPtr)IntPtr.Size, IntPtr.Zero, IntPtr.Zero))
+                throw new Win32Exception();
+            var startup = new Native.StartupInfoEx
+            {
+                Size = Marshal.SizeOf<Native.StartupInfoEx>(),
+                Flags = Native.STARTF_USESTDHANDLES,
+                StdOutput = handle,
+                StdError = handle,
+                AttributeList = attributes,
+            };
+            var commandLine = new StringBuilder(string.Join(" ", new[] { exe }.Concat(args).Select(Quote)));
+            if (!Native.CreateProcess(exe, commandLine, IntPtr.Zero, IntPtr.Zero, true,
+                    Native.CREATE_NO_WINDOW | Native.CREATE_UNICODE_ENVIRONMENT | Native.EXTENDED_STARTUPINFO_PRESENT,
+                    block, directory, ref startup, out var started))
+                throw new Win32Exception();
+            Native.CloseHandle(started.Thread);
+            Native.CloseHandle(started.Process);
+            return started.ProcessId;
+        }
+        finally
+        {
+            if (initialized) Native.DeleteProcThreadAttributeList(attributes);
+            Marshal.FreeHGlobal(attributes);
+            Marshal.FreeHGlobal(handles);
+            Marshal.FreeHGlobal(block);
+        }
     }
 
     public static Task WaitForExitAsync(Process process)

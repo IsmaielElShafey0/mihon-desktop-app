@@ -36,7 +36,11 @@ static class Paths
     public static readonly string SettingsFile = Path.Combine(Root, "settings.ini");
     public static readonly string StateFile = Path.Combine(Root, "state.ini");
 
-    public static readonly string Emulator = Path.Combine(Sdk, "emulator", "emulator.exe");
+    public static readonly string EmulatorDir = Path.Combine(Sdk, "emulator");
+    public static readonly string Emulator = Path.Combine(EmulatorDir, "emulator.exe");
+    // Android's emulator process, and the same file under Mihon's name (see Device.StartAsMihon).
+    public static readonly string Qemu = Path.Combine(EmulatorDir, "qemu", "windows-x86_64", "qemu-system-x86_64.exe");
+    public static readonly string QemuAsMihon = Path.Combine(EmulatorDir, "qemu", "windows-x86_64", "Mihon.exe");
     public static readonly string Adb = Path.Combine(Sdk, "platform-tools", "adb.exe");
     public static readonly string Scrcpy = Path.Combine(ScrcpyDir, "scrcpy.exe");
 

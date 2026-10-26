@@ -14,7 +14,8 @@ Android code), so it can't simply be rebuilt as a Windows program. `Mihon.exe` d
    Android's on-screen keyboard apps are switched off, so the PC keyboard goes straight to Mihon.
    Everything else Mihon doesn't need is switched off too: Google's apps and Play services, Bluetooth,
    sensors and the emulator's unused hardware. That trimmed Android runs in 1.5 GB of memory and stays
-   quiet in the background.
+   quiet in the background. Its process runs under Mihon's name, so Task Manager counts it in the
+   **Mihon Desktop App** row instead of listing a separate `qemu-system-x86_64`.
 2. **Mihon:** it downloads the official `mihon-x86_64` APK from
    [mihonapp/mihon releases](https://github.com/mihonapp/mihon/releases), checks it against the SHA-256
    that GitHub publishes, and installs it.

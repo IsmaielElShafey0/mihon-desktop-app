@@ -23,6 +23,46 @@ static class Native
     [DllImport("gdi32.dll")]
     public static extern int StretchDIBits(IntPtr dc, int x, int y, int width, int height, int srcX, int srcY, int srcWidth,
         int srcHeight, uint[] bits, byte[] info, uint usage, uint rop);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool CreateHardLink(string fileName, string existingFileName, IntPtr securityAttributes);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern bool CreateProcess(string applicationName, StringBuilder commandLine, IntPtr processAttributes,
+        IntPtr threadAttributes, bool inheritHandles, uint creationFlags, IntPtr environment, string currentDirectory,
+        ref StartupInfoEx startupInfo, out ProcessInformation processInformation);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, int flags, ref IntPtr size);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    public static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags, IntPtr attribute, IntPtr value, IntPtr size,
+        IntPtr previousValue, IntPtr returnSize);
+
+    [DllImport("kernel32.dll")] public static extern void DeleteProcThreadAttributeList(IntPtr list);
+    [DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetHandleInformation(SafeHandle handle, int mask, int flags);
+    [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr handle);
+
+    public const uint CREATE_UNICODE_ENVIRONMENT = 0x400, EXTENDED_STARTUPINFO_PRESENT = 0x80000, CREATE_NO_WINDOW = 0x08000000;
+    public const int STARTF_USESTDHANDLES = 0x100, HANDLE_FLAG_INHERIT = 1, PROC_THREAD_ATTRIBUTE_HANDLE_LIST = 0x20002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StartupInfoEx
+    {
+        public int Size;
+        public IntPtr Reserved, Desktop, Title;
+        public int X, Y, XSize, YSize, XCountChars, YCountChars, FillAttribute, Flags;
+        public short ShowWindow, Reserved2Size;
+        public IntPtr Reserved2, StdInput, StdOutput, StdError;
+        public IntPtr AttributeList;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ProcessInformation
+    {
+        public IntPtr Process, Thread;
+        public int ProcessId, ThreadId;
+    }
+
     [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hWnd, int attribute, ref int value, int size);
 
     // Dark mode works from Windows 10 2004; the colors only on Windows 11.

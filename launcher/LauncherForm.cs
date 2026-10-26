@@ -314,8 +314,10 @@ sealed class LauncherForm : Form
     void StartAndroid(State state, Settings settings, string gpu)
     {
         AndroidSdk.WriteAvd(state.Get("system_image"), settings, gpu);
+        // Android's process starts as Mihon.exe, unless that already failed on this PC (see Device.StartAsMihon).
+        var asMihon = Device.CanStartAsMihon(settings, gpu) && state.Get("start_as_mihon") != "failed";
         // Forgotten until Android has booted, so an interrupted cold boot is retried next time.
-        var hardware = Device.HardwareSignature(settings, gpu);
+        var hardware = Device.HardwareSignature(settings, gpu, asMihon);
         var changed = state.Get("android_hardware") != hardware;
         state.Remove("android_hardware");
         if (changed) Log.Info("Emulated hardware changed, so Android starts without its saved state once");
@@ -330,11 +332,11 @@ sealed class LauncherForm : Form
         var stuck = state.Get("android_stuck") != null;
         if (stuck) Log.Info("Android got stuck showing Mihon's splash screen last time, so it starts without its saved state");
         var fresh = coldBoot || changed || restarted || heavy || stuck;
-        Device.Start(settings, gpu, fresh);
+        Device.Start(settings, gpu, fresh, asMihon);
         fromSavedState = !fresh;
         state.Remove("mihon_restarted");
         state.Remove("android_stuck");
-        pendingHardware = hardware;
+        startedGpu = gpu;
     }
 
     /// <summary>This launch started Android from its saved state (a quick start).</summary>
@@ -350,7 +352,8 @@ sealed class LauncherForm : Form
         if (MihonApp.SplashStuck) state.Set("android_stuck", "1");
     }
 
-    string pendingHardware;
+    /// <summary>The graphics Android was started with in this launch, if it was started.</summary>
+    string startedGpu;
 
     async Task LaunchAsync(State state, Settings settings, CancellationToken ct)
     {
@@ -377,7 +380,9 @@ sealed class LauncherForm : Form
             // Only now is it clear that the graphics card was the problem (and not, say, the whole emulator).
             state.Set("gpu_fallback", "software");
         }
-        if (pendingHardware != null) state.Set("android_hardware", pendingHardware);
+        if (Device.StartAsMihonFailed) state.Set("start_as_mihon", "failed");
+        // The hardware Android's saved state will be for, including how its process was really started.
+        if (startedGpu != null) state.Set("android_hardware", Device.HardwareSignature(settings, startedGpu, Device.RunningAsMihon));
         Device.KeepAtFullSpeed();
         if (state.Get("provisioned") == null)
         {
