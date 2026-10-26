@@ -83,9 +83,11 @@ Mihon again. Each setting is explained in the file. The useful ones:
 - `ram_mb`, `cpu_cores`: resources for Android. 1.5 GB and 4 cores (fewer on PCs with fewer than 8
   processors) are plenty for the trimmed Android; more cores, up to the emulator's limit of 6, only add
   background work.
-- `animations`: `fast` (the default) plays Android's animations at double speed, `normal` as on a phone,
-  `off` not at all. With `off`, moving around Mihon takes about a third less CPU, but loading spinners stand
-  still and covers appear without fading in. Scrolling is the same either way.
+- `animations`: `off` (the default) shows screens and pictures straight away, and loading spinners stand
+  still. Every animated frame is drawn in full, so a turning spinner costs as much CPU as fast scrolling (about
+  1.3 cores here); without animations a loading page costs no more than an idle one, and moving around Mihon
+  takes about a third less. Scrolling is just as smooth either way. `fast` plays animations at double speed,
+  `normal` as on a phone.
 - `trim_android=false`: switch Android's own apps (Google apps, Play services, Bluetooth) back on. They
   cost about 1 GB of memory and Mihon doesn't use them.
 - `view=scrcpy`: show Mihon through scrcpy, as a compressed video stream, the way versions before 1.0.11

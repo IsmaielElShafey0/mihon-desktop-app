@@ -386,10 +386,10 @@ static class Device
     public static Task<string> RunAsRootAsync(string script, CancellationToken ct) => ShellAsync(
         $"echo {Convert.ToBase64String(Encoding.UTF8.GetBytes(script.Replace("\r\n", "\n")))} | base64 -d | su 0 sh", ct);
 
-    /// <summary>Applies the animations setting: fast plays Android's animations at double speed.</summary>
+    /// <summary>Applies the animations setting: off, fast (double speed) or normal.</summary>
     public static Task SetAnimationsAsync(string animations, CancellationToken ct)
     {
-        var scale = animations switch { "normal" => "1", "off" => "0", _ => "0.5" };
+        var scale = animations switch { "normal" => "1", "fast" => "0.5", _ => "0" };
         return ShellAsync(string.Join("; ",
             new[] { "window_animation_scale", "transition_animation_scale", "animator_duration_scale" }
                 .Select(key => $"settings put global {key} {scale}")), ct);

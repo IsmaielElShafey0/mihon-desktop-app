@@ -81,10 +81,11 @@ sealed class Settings
             File.WriteAllText(Paths.SettingsFile, Template);
         }
         var ini = new Ini(Paths.SettingsFile);
-        if (TemplateKeys().Any(key => ini.Get(key) == null))
+        var fastAnimationsDefault = File.ReadAllText(Paths.SettingsFile).Contains(FastAnimationsExplanation);
+        if (TemplateKeys().Any(key => ini.Get(key) == null) || fastAnimationsDefault)
         {
             // Written by an older version: rewrite it with the current explanations, keeping the values.
-            Upgrade(ini);
+            Upgrade(ini, fastAnimationsDefault);
             ini = new Ini(Paths.SettingsFile);
         }
         return new Settings
@@ -99,11 +100,11 @@ sealed class Settings
             ExtensionInstaller = ini.Get("extension_installer", "private").ToLowerInvariant() == "mihon" ? "mihon" : "private",
             View = ini.Get("view", "emulator").ToLowerInvariant() == "scrcpy" ? "scrcpy" : "emulator",
             TrimAndroid = ini.GetBool("trim_android", true),
-            Animations = ini.Get("animations", "fast").ToLowerInvariant() switch
+            Animations = ini.Get("animations", "off").ToLowerInvariant() switch
             {
                 "normal" => "normal",
-                "off" => "off",
-                _ => "fast",
+                "fast" => "fast",
+                _ => "off",
             },
             AutoUpdate = ini.GetBool("auto_update", true),
             ReleaseRepo = ini.Get("release_repo", "mihonapp/mihon"),
@@ -129,20 +130,25 @@ sealed class Settings
     static IEnumerable<string> TemplateKeys() =>
         TemplateLines().Where(line => !line.StartsWith("#") && line.IndexOf('=') > 0).Select(line => line.Substring(0, line.IndexOf('=')));
 
-    static void Upgrade(Ini current)
+    static void Upgrade(Ini current, bool fastAnimationsDefault)
     {
         File.WriteAllLines(Paths.SettingsFile, TemplateLines().Select(line =>
         {
             var eq = line.IndexOf('=');
             if (line.StartsWith("#") || eq <= 0) return line;
             var key = line.Substring(0, eq);
-            return current.Get(key) is string value ? key + "=" + Migrate(key, value, current) : line;
+            return current.Get(key) is string value ? key + "=" + Migrate(key, value, current, fastAnimationsDefault) : line;
         }));
     }
 
+    // How settings.ini explained animations while they defaulted to fast.
+    const string FastAnimationsExplanation = "fast plays them at double speed, so moving around Mihon feels quicker";
+
     /// <summary>Replaces values that were defaults in older versions with the current ones.</summary>
-    static string Migrate(string key, string value, Ini current) => key switch
+    static string Migrate(string key, string value, Ini current, bool fastAnimationsDefault) => key switch
     {
+        // fast was the default until it turned out that a turning loading spinner costs as much CPU as scrolling.
+        "animations" when value == "fast" && fastAnimationsDefault => "off",
         // 3072 was the default before Android got trimmed, and 2048 before the window drew straight from the emulator
         // (view=); now it gets by with 1.5 GB.
         "ram_mb" when (value == "3072" || value == "2048") && current.Get("view") == null => "1536",
@@ -207,10 +213,11 @@ sealed class Settings
         # quiet in the background. false switches Android's apps back on.
         trim_android=true
 
-        # Android's animations. fast plays them at double speed, so moving around Mihon feels quicker.
-        # normal: as on a phone. off: no animations, so moving around Mihon takes about a third less CPU, but
-        # loading spinners stand still and covers appear without fading in. Scrolling is the same either way.
-        animations=fast
+        # Android's animations. off: screens and pictures appear straight away and loading spinners stand
+        # still. That saves a lot of CPU: a turning spinner costs as much as scrolling, and moving around
+        # Mihon takes about a third less. Scrolling is just as smooth either way.
+        # fast: animations at double speed. normal: as on a phone.
+        animations=off
 
         # Check GitHub for a newer Mihon release every time Mihon starts, and install it.
         auto_update=true
