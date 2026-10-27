@@ -168,9 +168,10 @@ The output is a single `Mihon.exe` (about 240 KB) that runs on the .NET Framewor
 ## Website
 
 The project's page, [ismaielelshafey0.github.io/mihon-desktop-app](https://ismaielelshafey0.github.io/mihon-desktop-app/),
-is [`docs/index.html`](docs/index.html), which GitHub Pages serves from the `docs` folder. The guides on it (Mimi,
-Hana, Kaito and Kuro) are drawn in SVG inside that file, and `docs/og.png` is its hero as a 1200×630 screenshot
-for link previews.
+is [`docs/index.html`](docs/index.html), which GitHub Pages serves from the `docs` folder. It tells the story in
+full-screen parts: each one slides up over the last as you scroll. The characters on it, in `docs/img`, are official
+art from SPY×FAMILY, Jujutsu Kaisen and Solo Leveling and belong to their rights holders. `docs/og.png` is the top of
+the page as a 1200×630 screenshot for link previews.
 
 ## Not an official Mihon app
 
