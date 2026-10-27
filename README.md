@@ -56,7 +56,7 @@ memory while Mihon is closed. The next start takes about 5 seconds, and Mihon is
 the Start menu (and, if you leave the box ticked, to the desktop). No administrator rights are needed.
 
 **Requirements:** 64-bit Windows 10 or 11 on an Intel or AMD processor, 8 GB of RAM (Android takes 1.5 GB of it),
-about 13 GB of free disk space plus room for downloaded chapters, and hardware virtualization: the
+about 10 GB of free disk space, and hardware virtualization: the
 **Windows Hypervisor Platform** feature has to be turned on. If it isn't, Mihon tells you how to turn it on.
 A graphics card (integrated is fine) makes scrolling smooth: Android is drawn by the graphics card. On a
 16-thread laptop, scrolling a list runs at 60 fps and takes about one of its 16 processors, browsing about a
