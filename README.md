@@ -1,7 +1,13 @@
 # Mihon Desktop App
 
-An unofficial way to use [Mihon](https://github.com/mihonapp/mihon) on Windows 10 and 11. It runs the
-**official Mihon Android app** and installs every new Mihon release automatically.
+An unofficial way to use [Mihon](https://github.com/mihonapp/mihon), the free and open source manga reader,
+on a Windows 10 or 11 PC. It runs the **official Mihon Android app** in a window of its own and installs every
+new Mihon release automatically.
+
+**[Download Mihon.exe](https://github.com/IsmaielElShafey0/mihon-desktop-app/releases/latest/download/Mihon.exe)**
+· [Website](https://ismaielelshafey0.github.io/mihon-desktop-app/)
+
+![Mihon Desktop App](docs/og.png)
 
 ## How it works
 
@@ -39,7 +45,8 @@ memory while Mihon is closed. The next start takes about 5 seconds, and Mihon is
 
 ## Install
 
-1. Download `Mihon.exe` from this fork's [Releases](../../releases/latest).
+1. Download [`Mihon.exe`](https://github.com/IsmaielElShafey0/mihon-desktop-app/releases/latest/download/Mihon.exe)
+   from the [latest release](https://github.com/IsmaielElShafey0/mihon-desktop-app/releases/latest).
 2. Run it. The file isn't code-signed, so Windows SmartScreen may warn about it: choose
    **More info → Run anyway**.
 3. Click **Accept and install**. The first start downloads about 2.5 GB and takes a few minutes
@@ -140,10 +147,10 @@ Mihon's backups also work with Mihon on a phone, in both directions.
 Every file is checked against the checksum its source publishes (SHA-1 for Google's files, SHA-256 for
 GitHub's) before it's used.
 
-## Releases of this fork
+## Releases
 
-[`.github/workflows/windows.yml`](../.github/workflows/windows.yml) builds `Mihon.exe` and publishes it as a
-release named after the Mihon version it was built alongside (for example `windows-v0.21.2`). It runs when
+[`.github/workflows/release.yml`](.github/workflows/release.yml) builds `Mihon.exe` and publishes it as a
+release named after the Mihon version it was built alongside (for example `windows-v0.21.3`). It runs when
 the launcher code changes, and every 6 hours it checks whether Mihon has published a new release. The
 launcher doesn't depend on these releases to update Mihon: it always gets Mihon straight from
 mihonapp/mihon.
@@ -153,7 +160,20 @@ mihonapp/mihon.
 Needs the .NET SDK (any version from 6 up) on Windows:
 
 ```
-dotnet build windows/launcher -c Release
+dotnet build launcher -c Release
 ```
 
 The output is a single `Mihon.exe` (about 240 KB) that runs on the .NET Framework 4.8 built into Windows.
+
+## Website
+
+The project's page, [ismaielelshafey0.github.io/mihon-desktop-app](https://ismaielelshafey0.github.io/mihon-desktop-app/),
+is [`docs/index.html`](docs/index.html), which GitHub Pages serves from the `docs` folder. The guides on it (Mimi,
+Hana, Kaito and Kuro) are drawn in SVG inside that file, and `docs/og.png` is its hero as a 1200×630 screenshot
+for link previews.
+
+## Not an official Mihon app
+
+Mihon Desktop App is an independent project. The Mihon Open Source Project doesn't make, endorse or support it,
+so please report problems with it [here](https://github.com/IsmaielElShafey0/mihon-desktop-app/issues), not to
+Mihon. The name Mihon and its logo belong to the Mihon Open Source Project.
